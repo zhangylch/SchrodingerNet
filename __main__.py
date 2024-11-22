@@ -1,0 +1,12 @@
+import sys 
+if sys.argv[1]=="eval":
+    import eval.train
+elif sys.argv[1]=="DBOC":
+    import eval.DBOC
+elif sys.argv[1]=="logpsi":
+    import eval.eval
+elif sys.argv[1]=="pretrain":
+    import pretrain.train
+    import run.train
+elif sys.argv[1]=="train":
+    import run.train

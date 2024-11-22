@@ -1,0 +1,57 @@
+#======general setup===========================================
+table_init = 1              # 1: a pretrained or restart  
+dtype = 'float32'   #float32/float64
+initene = -1000.0
+# batchsize: the most import setup for efficiency
+batchsize = 4096 # batchsize for each process
+ele_ion = [0]
+up_error = 1e0
+low_error = -1e0
+clip_scale = 5.0
+clip_norm = 1.0
+sparsity = 0
+ncyc = 100
+#========================parameters for optim=======================
+Epoch= 120000                    # total numbers of epochs for fitting 
+n_add = 4
+slr=0.0004              # initial learning rate
+elr=2e-5                    # final learning rate
+patience_step = 200000            # patience epoch  Number of epochs with no improvement after which learning rate will be reduced. 
+
+datafloder="./"
+nwalker = 4096
+#======= electron sample============
+# all in atomic unit
+# Temperature 1 au = 3.1577e5 K
+# time 1 au = 2.41888e-17 s 
+# constant
+MC_time = 5
+step = [0.25, 1e-4]
+#======= nuclear sample============
+ndet = 16
+numatom = 3
+nele = 1
+nup = 1
+cutoff = 20.0
+max_l= 1
+nwave= 12
+ngauss = 8
+ncontract= 8
+epson = 1e-20
+
+#===============================embedded NN structure==========
+emb_nl = [1, 64, 1, False]  # nblock, nfeature, nlayer, Layer_norm
+
+MP_loop = 0
+MP_nl = [1, 64, 1, True]  # nblock, nfeature, nlayer, Layer_norm
+
+det_nl = [1, 64, 1, True]  # nblock, nfeature, nlayer, Layer_norm
+
+out_nl = [1, 64, 1, True]  # nblock, nfeature, nlayer, Layer_norm
+
+#===============params for pes=============================
+pre_table_init = 0
+pre_slr = 5e-4
+pre_elr = 2e-5
+pre_Epoch = 50000
+pre_patience_epoch = 40000
