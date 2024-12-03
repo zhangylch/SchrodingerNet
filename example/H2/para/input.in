@@ -12,8 +12,8 @@ clip_norm = 1.0
 sparsity = 0
 ncyc = 100
 #========================parameters for optim=======================
-Epoch= 150000                    # total numbers of epochs for fitting 
-n_add = 12
+Epoch= 100000                    # total numbers of epochs for fitting 
+n_add = 10
 slr=0.00025            # initial learning rate
 elr=2e-5                    # final learning rate
 patience_step = 200000            # patience epoch  Number of epochs with no improvement after which learning rate will be reduced. 
