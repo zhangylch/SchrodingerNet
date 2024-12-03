@@ -13,12 +13,12 @@ sparsity = 0
 ncyc = 100
 #========================parameters for optim=======================
 Epoch= 150000                    # total numbers of epochs for fitting 
-n_add = 6
+n_add = 12
 slr=0.00025            # initial learning rate
-elr=4e-5                    # final learning rate
+elr=2e-5                    # final learning rate
 patience_step = 200000            # patience epoch  Number of epochs with no improvement after which learning rate will be reduced. 
 
-datafloder="data/"
+datafloder="/data1/home/hhu17/zyl/data/PINE/H2/17/"
 nwalker = 4096
 #======= electron sample============
 # all in atomic unit
@@ -26,32 +26,32 @@ nwalker = 4096
 # time 1 au = 2.41888e-17 s 
 # constant
 MC_time = 5
-step = [0.25, 0.01]
+step = [0.3, 0.0001]
 #======= nuclear sample============
 ndet = 16
 numatom = 4
 nele = 2
 nup = 1
-cutoff = 24.0
+cutoff = 25.0
 max_l= 1
 nwave= 16
 ngauss = 8
-ncontract= 8
+ncontract= 12
 epson = 1e-20
 
 #===============================embedded NN structure==========
-emb_nl = [1, 64, 1, False]  # nblock, nfeature, nlayer, Layer_norm
+emb_nl = [1, 64, 0, False]  # nblock, nfeature, nlayer, Layer_norm
 
 MP_loop = 1
-MP_nl = [1, 64, 1, True]  # nblock, nfeature, nlayer, Layer_norm
+MP_nl = [1, 64, 2, True]  # nblock, nfeature, nlayer, Layer_norm
 
-det_nl = [1, 64, 1, True]  # nblock, nfeature, nlayer, Layer_norm
+det_nl = [1, 64, 2, True]  # nblock, nfeature, nlayer, Layer_norm
 
-out_nl = [1, 64, 1, True]  # nblock, nfeature, nlayer, Layer_norm
+out_nl = [1, 64, 0, True]  # nblock, nfeature, nlayer, Layer_norm
 
 #===============params for pes=============================
 pre_table_init = 0
 pre_slr = 4e-4
 pre_elr = 2e-5
-pre_Epoch = 100000
-pre_patience_epoch = 80000
+pre_Epoch = 150000
+pre_patience_epoch = 100000

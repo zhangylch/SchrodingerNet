@@ -88,7 +88,7 @@ def contract_sph(rmaxl, MP_loop):
     initbias_cg = []
     for lf in range(rmaxl):
         for li1 in range(rmaxl):
-            low = abs(li1 - lf)
+            low = max(abs(li1 - lf), li1)
             up = min(rmaxl, li1+lf+1)
             for li2 in range(low, up):
                 num_coeff +=1
