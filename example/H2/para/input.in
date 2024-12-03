@@ -18,7 +18,7 @@ slr=0.00025            # initial learning rate
 elr=2e-5                    # final learning rate
 patience_step = 200000            # patience epoch  Number of epochs with no improvement after which learning rate will be reduced. 
 
-datafloder="/data1/home/hhu17/zyl/data/PINE/H2/17/"
+datafloder="data/"
 nwalker = 4096
 #======= electron sample============
 # all in atomic unit
