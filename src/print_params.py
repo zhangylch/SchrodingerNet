@@ -8,5 +8,5 @@ def print_params(params, parent_key=""):
         if isinstance(value, dict):  # Check if it's a nested dictionary (FrozenDict)
             print_params(value, full_key)  # Recursively print nested keys
         else:
-            print(f"Parameter Name: {full_key}, Shape: {value.shape}")
+            print(f"Parameter Name: {full_key}, Shape: {value.shape}, Dtype: {value.dtype}")
 

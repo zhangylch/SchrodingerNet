@@ -13,113 +13,85 @@ import math
 
 
 class Sampling():
-    def __init__(self, key, coor, sqrt_mass, ele_ion, params, wf_model, vmap_model, nwalker=4096, MC_time=50, step = 0.2):
-        self.nwalker = nwalker
-        self.nele = ele_ion.shape[0]
-        self.numatom = coor.shape[1]
-        self.nuc = self.numatom - self.nele
+    def __init__(self, sqrt_mass, model, MC_time=50, jnp_dtype="float32", nwalker=4096, step=0.2, prob=0.5, nmove=4):
+
+        self.nele = int(jnp.sum(jnp.less(sqrt_mass, 2)))
+        self.npar = sqrt_mass.shape[0]
+        self.nuc = self.npar - self.nele
         self.MC_time = MC_time
         self.sqrt_mass = sqrt_mass
+        self.prob=prob
+        self.nwalker=nwalker
+        self.nmove = min(self.nele, nmove)
 
-        self.allatomindex=jnp.zeros(shape=(2,int(self.numatom * (self.numatom-1)/2)), dtype=jnp.int32)
-        neigh=jnp.arange(self.numatom, dtype=jnp.int32)
+        if "32" in jnp_dtype:
+            np_int = np.int32
+        else:
+            np_int = np.int64
+
+        allatomindex=np.zeros(shape=(2,int(self.npar * (self.npar-1)/2)), dtype=np_int)
+        neigh=np.arange(self.npar, dtype=np_int)
         num=0
-        for i in range(self.numatom-1):
-            self.allatomindex = self.allatomindex.at[0,num:num+self.numatom-1-i].set(i )
-            self.allatomindex = self.allatomindex.at[1,num:num+self.numatom-1-i].set(neigh[i+1:])
-            num=num+self.numatom-1-i
-
-        key = jax.random.split(key, 3)
+        for i in range(self.npar-1):
+            allatomindex[0,num:num+self.npar-1-i] = i 
+            allatomindex[1,num:num+self.npar-1-i] = neigh[i+1:]
+            num=num+self.npar-1-i
+        self.allatomindex = jnp.array(allatomindex)
         # params for electron
-        step = jnp.array([step[0]]*self.nele + [step[1]] * self.nuc)
-        self.step = step/jnp.square(sqrt_mass)
+        self.wf_model = model
 
-        ele_space = jnp.zeros(self.nele)
-        count = jnp.zeros(self.nuc)
-        for iele in range(self.nele):
-            for iatom in range(self.nuc):
-                if abs(ele_ion[iele] - iatom) < 0.5: 
-                    count = count.at[iatom].set(count[iatom]+1.0)
-                    ele_space = ele_space.at[iele].set(count[iatom])
-                    break
-        print(ele_space)
-
-        try: 
-            coor = np.load("sample.npz")["coor"]
-            shuffle_list = jax.random.permutation(key[0], coor.shape[0])
-            coor = coor[shuffle_list[:nwalker]]
-            print("load data")
-
-        except FileNotFoundError:
-            try:
-                coor = np.load("coor.npz")["coor"]
-                shuffle_list = jax.random.permutation(key[0], coor.shape[0])
-                coor = coor[shuffle_list[:nwalker]]
-                print("load seed data")
-            except FileNotFoundError:
-                nrepeat = math.ceil(nwalker/coor.shape[0]) 
-                coor = jnp.repeat(coor.reshape(1, -1, self.numatom, 3), nrepeat, axis=0).reshape(-1, self.numatom, 3)[:nwalker]
-                offset = coor[:, ele_ion + self.nele]
-                init_ele = jax.random.normal(key[1], (nwalker, self.nele, 3)) + offset
-                coor = coor.at[:,:self.nele].set(init_ele)
-                print("random initilization")
-        
-        
-        
-        self.seedcoor = coor
-
-        self.param = params
-        self.wf_model = jit(wf_model.apply)
-        self.vmap_model = vmap_model
+        self.vmap_model = vmap(model, in_axes=(None, 0))
+        step = jnp.array([step[0]]*self.nele + [step[1]] * self.nuc, dtype=sqrt_mass.dtype)
+        self.step = step/jnp.square(sqrt_mass) * 1e-1
       
-        self.key = key[-1]
-
         self.MC = self.MC_sample()
 
-    def __call__(self):
+    def __call__(self, key, coor, init_logpsi, params, step, scale=1.0):
 
-        mwcoor = self.seedcoor * self.sqrt_mass[:, None]
-        init_logpsi = self.vmap_model(self.params, mwcoor, self.sqrt_mass)
+        coor = jnp.asarray(coor, dtype=self.sqrt_mass.dtype)
+        step = jnp.asarray(step, dtype=coor.dtype)
+        mwcoor = coor * self.sqrt_mass[:, None]
+        init_logpsi = self.vmap_model(params, mwcoor)
+        scale = jnp.asarray(scale, dtype=init_logpsi.dtype)
+        params, seedcoor, init_logpsi, key, step = self.MC(params, coor, init_logpsi, key, step, scale)
+        
 
-        in_key = jax.random.split(self.key, self.nwalker+1)
-
-        tmp, self.seedcoor, init_logpsi, key = self.MC(self.params, self.seedcoor, init_logpsi, in_key[:self.nwalker])
-
-        self.key = in_key[-1]
-        return self.seedcoor
+        return key, seedcoor, init_logpsi, step
 
     def MC_sample(self):
-        @jit
-        def _MC_step(params, initcoor, init_logpsi, key):
-            key = jax.random.split(key, 3)
-            randsize = jax.random.normal(key[0], (self.numatom, 3))
-            stepsize = randsize * self.step[:, None]
+        def _MC_step(params, initcoor, init_logpsi, key, step, scale):
+            key = jax.random.split(key, 4)
+            randsize = jax.random.normal(key[0], (self.nmove+self.nuc, 3), dtype=initcoor.dtype)
+            stepsize = randsize * step[-self.nmove-self.nuc:, None]
+            move_idx = jax.random.choice(key[1], self.nele, (self.nmove,), replace=False)
 
-            coor = initcoor + stepsize
+            coor = initcoor.at[move_idx].add(stepsize[:self.nmove])
+            coor = coor.at[self.nele:].add(stepsize[self.nmove:])
             mwcoor = coor * self.sqrt_mass[:, None]
-            logpsi = self.wf_model(params, mwcoor, self.sqrt_mass)
+            logpsi = self.wf_model(params, mwcoor)
 
-            expand_coor = coor[self.allatomindex.reshape(-1)].reshape(2, -1, 3)
-            distvec = expand_coor[1] - expand_coor[0]
-            distances = jnp.linalg.norm(distvec, axis=1)
-            judge1 = jnp.greater(jnp.min(distances), 0.05)
+            alpha = jax.random.uniform(key[2], (1,), dtype=init_logpsi.dtype)
+            judge = jnp.greater(2.0 * (logpsi - init_logpsi) / scale, jnp.log(alpha))
+            judge = jnp.logical_and(judge, jnp.isfinite(logpsi))
+            judge = judge.astype(initcoor.dtype)
 
-            alpha = jax.random.uniform(key[1], 1)
-            judge = (2.0 * (logpsi - init_logpsi)) > jnp.log(alpha)
-            judge = jnp.logical_and(judge, judge1)[0]
+            initcoor = jnp.where(judge[0], coor, initcoor)
+            init_logpsi = jnp.where(judge[0], logpsi, init_logpsi)
+            return initcoor, init_logpsi, judge, key[3]
 
-            initcoor = coor * judge + initcoor * (1.0 - judge)
-            init_logpsi = logpsi * judge + init_logpsi * (1.0 - judge)
-            return initcoor, init_logpsi, key[2]
+        vmap_mc = vmap(_MC_step, in_axes=(None, 0, 0, 0, None, None), out_axes=(0, 0, 0, 0))
 
-        jit_mc = jit(vmap(_MC_step, in_axes=(None, 0, 0, 0), out_axes=(0, 0, 0)))
-
-        def scan_fun(i, carry):
-            params, coor, logpsi, key = carry
-            coor, logpsi, key = jit_mc(params, coor, logpsi, key)
-            return params, coor, logpsi, key
+        def scan_fun(_, carry):
+            params, coor, logpsi, key, step, scale, sum_move = carry
+            coor, logpsi, judge, key = vmap_mc(params, coor, logpsi, key, step, scale)
+            sum_move += jnp.sum(judge)
+            return params, coor, logpsi, key, step, scale, sum_move
   
-        def jax_scan(params, initcoor, init_logpsi, key):
-            return jax.lax.fori_loop(0, self.MC_time, scan_fun, (params, initcoor, init_logpsi, key))
+        def jax_scan(params, initcoor, init_logpsi, key, step, scale):
+            sum_move = jnp.array(0.0, dtype=initcoor.dtype)
+            params, initcoor, init_logpsi, key, step, scale, sum_move = jax.lax.fori_loop(0, self.MC_time, scan_fun, (params, initcoor, init_logpsi, key, step, scale, sum_move))
+            step = jax.lax.psum(sum_move, axis_name="GPUs") / self.nwalker / self.MC_time / self.prob * step 
+            step = jnp.where(step > self.step, step, self.step).astype(initcoor.dtype)
+            return params, initcoor, init_logpsi, key, step
 
-        return jit(jax_scan)
+        return jax_scan

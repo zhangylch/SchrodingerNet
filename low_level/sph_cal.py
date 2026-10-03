@@ -15,65 +15,73 @@ class SPH_CAL():
     Dtype: jnp.float32/jnp.float64
          represents the datatype in this module. Example: jnp.float32
     '''
-    def __init__(self, max_l=1):
+    def __init__(self, max_l=1, dtype="float32"):
         if max_l<0.5: raise ValueError("The angular momentum must be greater than or equal to 1. Or the angular momentum is lack of angular information, the calculation of the sph is meanless.")
+        if "32" in str(dtype.name):
+            jnp_float = jnp.float32
+            jnp_int = jnp.int32
+        else:
+            jnp_float = jnp.float64
+            jnp_int = jnp.int64
+
         self.max_l = max_l + 1
-        self.pt = jnp.arange(self.max_l * self.max_l).reshape(self.max_l,self.max_l)
-        self.yr = jnp.arange(self.max_l * self.max_l).reshape(self.max_l,self.max_l)
-        self.yr_rev = jnp.arange(self.max_l * self.max_l).reshape(self.max_l,self.max_l)
+        self.pt = jnp.arange(self.max_l * self.max_l, dtype=jnp_int).reshape(self.max_l, self.max_l)
+        self.yr = jnp.arange(self.max_l * self.max_l, dtype=jnp_int).reshape(self.max_l, self.max_l)
+        self.yr_rev = jnp.arange(self.max_l * self.max_l, dtype=jnp_int).reshape(self.max_l, self.max_l)
         num_lm = int((self.max_l+1) * self.max_l/2)
-        coeff_a = jnp.zeros(num_lm)
-        coeff_b = jnp.zeros(num_lm)
-        tmp = jnp.arange(self.max_l)
-        self.prefactor1 = -jnp.sqrt(1.0+0.5/tmp)
-        self.prefactor1 = self.prefactor1.at[0].set(0.0)
-        self.prefactor2 = jnp.sqrt(2.0*tmp+3)
+        coeff_a = jnp.zeros(num_lm, dtype=jnp_float)
+        coeff_b = jnp.zeros(num_lm, dtype=jnp_float)
+        tmp = jnp.arange(self.max_l, dtype=jnp_int)
+        self.prefactor1 = -jnp.sqrt(1.0+0.5/(tmp*1.0)).astype(jnp_float)
+        self.prefactor1 = self.prefactor1.at[0].set(jnp.array(0.0, dtype=jnp_float))
+        self.prefactor2 = jnp.sqrt(2.0*tmp+3).astype(jnp_float)
         ls = tmp*tmp
+        dtype_1 = jnp.array([1.0], dtype=jnp_float)
+        dtype_4 = jnp.array([4.0], dtype=jnp_float)
         for l in range(self.max_l):
-            self.pt = self.pt.at[l, 0:l+1].set(tmp[0:l+1] + int(l*(l+1)/2))
+            self.pt = self.pt.at[l, 0:l+1].set(tmp[0:l+1] + jnp.array(l*(l+1)/2, dtype=jnp_int))
             # here the self.yr and self.yr_rev have overlap in m=0.
-            self.yr = self.yr.at[l, 0:l+1].set(ls[l] + l + tmp[0:l+1])
-            self.yr_rev = self.yr_rev.at[l, 0:l+1].set(ls[l] + l - tmp[0:l+1])
+            self.yr = self.yr.at[l, 0:l+1].set(ls[l] + jnp.array(l, dtype=jnp_int) + tmp[0:l+1])
+            self.yr_rev = self.yr_rev.at[l, 0:l+1].set(ls[l] + jnp.array(l, dtype=jnp_int) - tmp[0:l+1])
             if l>0.5:
-                coeff_a = coeff_a.at[self.pt[l, 0:l]].set(jnp.sqrt((4.0 * ls[l] - 1) / (ls[l] - ls[0:l])))
-                coeff_b = coeff_b.at[self.pt[l, 0:l]].set(-jnp.sqrt((ls[l-1] - ls[0:l]) / (4.0*ls[l-1] - 1.0)))
+                coeff_a = coeff_a.at[self.pt[l, 0:l]].set(jnp.sqrt((dtype_4 * ls[l] - dtype_1) / (ls[l] - ls[0:l])))
+                coeff_b = coeff_b.at[self.pt[l, 0:l]].set(-jnp.sqrt((ls[l-1] - ls[0:l]) / (dtype_4*ls[l-1] - dtype_1)))
 
-        self.sqrt2_rev = jnp.sqrt(1.0 / 2.0)
-        self.sqrt2pi_rev = jnp.sqrt(0.5 / np.pi)
-        self.hc_factor1 = jnp.sqrt(15.0 / 4.0 / np.pi)
-        self.hc_factor2 = jnp.sqrt(5.0 / 16.0 / np.pi)
-        self.hc_factor3 = jnp.sqrt(15.0 / 16.0 / np.pi)
-        self.coeff_a = coeff_a
-        self.coeff_b = coeff_b
+        self.sqrt2_rev = jnp.sqrt(jnp.array(1.0 / 2.0, dtype=jnp_float))
+        self.sqrt2pi_rev = jnp.sqrt(jnp.array(0.5 / np.pi, dtype=jnp_float))
+        self.hc_factor1 = jnp.sqrt(jnp.array(15.0 / 4.0 / np.pi, dtype=jnp_float))
+        self.hc_factor2 = jnp.sqrt(jnp.array(5.0 / 16.0 / np.pi, dtype=jnp_float))
+        self.hc_factor3 = jnp.sqrt(jnp.array(15.0 / 16.0 / np.pi, dtype=jnp_float))
+        self.coeff_a = coeff_a.astype(jnp_float)
+        self.coeff_b = coeff_b.astype(jnp_float)
 
-
-    @partial(jit, static_argnums=0)
-    def __call__(self,cart):
+    def __call__(self, cart):
         '''
         cart: jnp.float32/jnp.float64.
             represents the cartesian coordinates of systems with its shape [3,...]. 
         '''
-        distances = jnp.linalg.norm(cart, axis=0)  # to convert to the dimension (n,batchsize)
-        d_sq = distances * distances
-        sph_shape = (self.max_l * self.max_l,) + cart.shape[1:]
-        sph = jnp.zeros(sph_shape)
-        sph = sph.at[0].set(self.sqrt2pi_rev * self.sqrt2_rev)
-        sph = sph.at[1].set(self.prefactor1[1] * self.sqrt2pi_rev * cart[1])
-        sph = sph.at[2].set(self.prefactor2[0] * self.sqrt2_rev * self.sqrt2pi_rev * cart[2])
-        sph = sph.at[3].set(self.prefactor1[1] * self.sqrt2pi_rev * cart[0])
+        d_sq = jnp.sum(jnp.square(cart), axis=0)
+        sph_list = []
+        sph_dim = d_sq.shape
+        sph_list.append(self.sqrt2pi_rev * self.sqrt2_rev * jnp.ones_like(cart[0:1]) + 0.0 * cart[0:1])
+        sph_list.append(self.prefactor1[1] * self.sqrt2pi_rev * cart[1].reshape(1, *sph_dim))
+        sph_list.append((self.prefactor2[0] * self.sqrt2_rev * self.sqrt2pi_rev * cart[2]).reshape(1, *sph_dim))
+        sph_list.append((self.prefactor1[1] * self.sqrt2pi_rev * cart[0]).reshape(1, *sph_dim))
         if self.max_l>2.5:
-            sph = sph.at[4].set(self.hc_factor1 * cart[0] * cart[1])
-            sph = sph.at[5].set(-self.hc_factor1 * cart[1] * cart[2])
-            sph = sph.at[6].set(self.hc_factor2 * (3.0 * cart[2] * cart[2] - d_sq))
-            sph = sph.at[7].set(-self.hc_factor1 * cart[0] * cart[2])
-            sph = sph.at[8].set(self.hc_factor3 * (cart[0] * cart[0] - cart[1] * cart[1]))
+            sph_list.append((self.hc_factor1 * cart[0] * cart[1]).reshape(1, *sph_dim))
+            sph_list.append((-self.hc_factor1 * cart[1] * cart[2]).reshape(1, *sph_dim))
+            sph_list.append((self.hc_factor2 * (3.0 * cart[2] * cart[2] - d_sq)).reshape(1, *sph_dim))
+            sph_list.append((-self.hc_factor1 * cart[0] * cart[2]).reshape(1, *sph_dim))
+            sph_list.append((self.hc_factor3 * (cart[0] * cart[0] - cart[1] * cart[1])).reshape(1, *sph_dim))
+            sph = jnp.concatenate(sph_list)
             for l in range(3, self.max_l):
-                sph = sph.at[self.yr[l, 0:l-1]].set(jnp.einsum("i, i...-> i...",self.coeff_a[self.pt[l, 0:l-1]], (cart[2] * sph[self.yr[l-1, 0:l-1]] + jnp.einsum("i, ..., i... -> i...", self.coeff_b[self.pt[l, 0:l-1]], d_sq, sph[self.yr[l-2, 0:l-1]]))))
-                sph = sph.at[self.yr_rev[l, 1:l-1]].set(jnp.einsum("i, i... -> i...", self.coeff_a[self.pt[l, 1:l-1]], (cart[2] * sph[self.yr_rev[l-1, 1:l-1]] + jnp.einsum("i,..., i... -> i...", self.coeff_b[self.pt[l, 1:l-1]], d_sq, sph[self.yr_rev[l-2, 1:l-1]]))))
-                sph = sph.at[self.yr[l, l-1]].set(self.prefactor2[l-1] * cart[2] * sph[self.yr[l-1, l-1]])
-                sph = sph.at[self.yr_rev[l, l-1]].set(self.prefactor2[l-1] * cart[2] * sph[self.yr_rev[l-1, l-1]])
-                sph = sph.at[self.yr[l, l]].set(self.prefactor1[l] * (cart[0] * sph[self.yr[l-1, l-1]] - cart[1] * sph[self.yr_rev[l-1, l-1]]))
-                sph = sph.at[self.yr_rev[l, l]].set(self.prefactor1[l] * (cart[0] * sph[self.yr_rev[l-1, l-1]] + cart[1] * sph[self.yr[l-1, l-1]]))
+                sph3 = jnp.einsum("i, i...-> i...",self.coeff_a[self.pt[l, 0:l-1]], (cart[2] * sph[self.yr[l-1, 0:l-1]] + jnp.einsum("i, ..., i... -> i...", self.coeff_b[self.pt[l, 0:l-1]], d_sq, sph[self.yr[l-2, 0:l-1]])))
+                sph2 = jnp.einsum("i, i... -> i...", self.coeff_a[jnp.flip(self.pt[l, 1:l-1])], (cart[2] * sph[jnp.flip(self.yr_rev[l-1, 1:l-1])] + jnp.einsum("i,..., i... -> i...", self.coeff_b[jnp.flip(self.pt[l, 1:l-1])], d_sq, sph[jnp.flip(self.yr_rev[l-2, 1:l-1])])))
+                sph4 = self.prefactor2[l-1] * cart[2] * sph[self.yr[l-1, l-1]]
+                sph1 = self.prefactor2[l-1] * cart[2] * sph[self.yr_rev[l-1, l-1]]
+                sph5 = self.prefactor1[l] * (cart[0] * sph[self.yr[l-1, l-1]] - cart[1] * sph[self.yr_rev[l-1, l-1]])
+                sph0 = self.prefactor1[l] * (cart[0] * sph[self.yr_rev[l-1, l-1]] + cart[1] * sph[self.yr[l-1, l-1]])
+                sph = jnp.concatenate([sph, sph0.reshape(-1, *sph_dim), sph1.reshape(-1, *sph_dim), sph2.reshape(-1, *sph_dim), sph3.reshape(-1, *sph_dim), sph4.reshape(-1, *sph_dim), sph5.reshape(-1, *sph_dim)], axis=0)
         return sph
 '''
 # here is an example to use the sph calculation

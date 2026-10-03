@@ -1,12 +1,19 @@
 import sys 
 if sys.argv[1]=="eval":
-    import eval.train
-elif sys.argv[1]=="DBOC":
-    import eval.DBOC
-elif sys.argv[1]=="logpsi":
     import eval.eval
-elif sys.argv[1]=="pretrain":
-    import pretrain.train
-    import run.train
+elif sys.argv[1]=="eval_ele":
+    import eval_ele.eval
 elif sys.argv[1]=="train":
-    import run.train
+    import train.train
+elif sys.argv[1]=="train_ele":
+    import train_ele.train
+elif sys.argv[1]=="dipole":
+    import eval_dip.eval
+elif sys.argv[1]=="nuc":
+    import eval_nuc.eval
+elif sys.argv[1]=="VMC_ele":
+    import VMC_ele.train
+    import train_ele.train
+elif sys.argv[1]=="VMC":
+    import VMC.train
+    import train.train

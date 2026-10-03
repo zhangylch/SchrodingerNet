@@ -1,0 +1,133 @@
+import jax
+import jax.numpy as jnp
+from typing import NamedTuple, Callable, Tuple
+
+# --- 1. 常数定义 (原子单位) ---
+KELVIN_TO_HARTREE = 3.1668114e-6
+
+# --- 2. 定义状态容器 ---
+# MC 不需要速度和质量，只需要位置、当前能量和随机数 Key
+class MCState(NamedTuple):
+    position: jnp.ndarray
+    potential_energy: jnp.ndarray
+    rng_key: jnp.ndarray
+    accept_count: jnp.ndarray # 用于监控接受率
+
+class MetropolisSampler:
+    def __init__(self, 
+                 potential_fn: Callable[[jnp.ndarray], jnp.ndarray], 
+                 step_size: float, 
+                 temperature_k: float):
+        """
+        初始化 MC 采样器
+        :param potential_fn: 势能函数 E = f(positions)，返回标量
+        :param step_size: 每次移动的最大步长 (sigma)，影响接受率
+        :param temperature_k: 采样温度 (Kelvin)
+        """
+        self.potential_fn = potential_fn
+        self.step_size = step_size
+        # 转换为原子单位温度 (Hartree), kB=1
+        self.temperature_au = temperature_k * KELVIN_TO_HARTREE
+
+    def init_state(self, init_pos: jnp.ndarray, seed: int) -> MCState:
+        """初始化状态"""
+        key = jax.random.PRNGKey(seed)
+        energy = self.potential_fn(init_pos)
+        return MCState(
+            position=init_pos,
+            potential_energy=energy,
+            rng_key=key,
+            accept_count=jnp.array(0, dtype=jnp.int32)
+        )
+
+    def _step(self, state: MCState) -> MCState:
+        """
+        单步 Metropolis-Hastings 采样 (纯函数，可 JIT)
+        """
+        key, subkey_move, subkey_check = jax.random.split(state.rng_key, 3)
+        
+        # 1. 提议移动 (Propose Move)
+        # 使用高斯噪声或均匀噪声均可，这里使用高斯噪声
+        displacement = jax.random.normal(subkey_move, shape=state.position.shape) * self.step_size
+        pos_proposal = state.position + displacement
+        
+        # 2. 计算新能量
+        e_proposal = self.potential_fn(pos_proposal)
+        
+        # 3. Metropolis 判据
+        delta_e = e_proposal - state.potential_energy
+        beta = 1.0 / self.temperature_au
+        
+        # 计算接受概率 p = exp(-dE/T)
+        # 注意：如果 delta_e < 0 (能量降低)，exp(-负数) > 1，必然接受
+        # jnp.exp 可能会溢出，但用于比较通常没问题，或者用 log 空间比较
+        p_accept = jnp.exp(-delta_e * beta)
+        
+        # 生成随机数进行判定
+        u = jax.random.uniform(subkey_check)
+        accept = u < p_accept
+        
+        # 4. 更新状态 (使用 where 避免 python if-else)
+        new_pos = jnp.where(accept, pos_proposal, state.position)
+        new_energy = jnp.where(accept, e_proposal, state.potential_energy)
+        new_count = state.accept_count + jnp.where(accept, 1, 0)
+        
+        return MCState(
+            position=new_pos,
+            potential_energy=new_energy,
+            rng_key=key,
+            accept_count=new_count
+        )
+
+    def get_step_fn(self):
+        """返回 JIT 编译后的步进函数"""
+        return jax.jit(self._step)
+
+# ==========================================
+# 使用示例
+# ==========================================
+
+# 1. 定义势能 (双阱势 Double Well，测试跳跃能力)
+def double_well_potential(pos):
+    # E = (x^2 - 4)^2 + y^2 + z^2
+    # 两个极小值在 x = -2 和 x = 2
+    x = pos[..., 0]
+    rest = pos[..., 1:]
+    e_x = 0.05 * (x**2 - 4.0)**2 
+    e_rest = 0.5 * jnp.sum(rest**2)
+    return jnp.sum(e_x + e_rest) # 求和以适应 batch
+
+# 2. 参数设置
+N_ATOMS = 1 # 单个粒子测试
+STEP_SIZE = 0.5 # 步长太大接受率低，太小采样慢
+TARGET_T = 300.0 # K
+
+# 3. 实例化
+mc_sampler = MetropolisSampler(double_well_potential, STEP_SIZE, TARGET_T)
+step_fn = mc_sampler.get_step_fn()
+
+# 4. 初始化
+# 粒子放在一个局部极小值 x=-2 附近
+init_pos = jnp.array([[-2.0, 0.0, 0.0]]) 
+state = mc_sampler.init_state(init_pos, seed=42)
+
+# 5. 运行采样 (使用 lax.scan 高速循环)
+N_STEPS = 10000
+
+def scan_body(carry_state, _):
+    new_state = step_fn(carry_state)
+    # 记录轨迹用于分析
+    return new_state, new_state.position
+
+print("Running MC Sampling...")
+final_state, trajectory = jax.lax.scan(scan_body, state, jnp.arange(N_STEPS))
+
+# 6. 结果分析
+acceptance_rate = final_state.accept_count / N_STEPS
+print(f"Final Energy: {final_state.potential_energy:.5f} Ha")
+print(f"Acceptance Rate: {acceptance_rate:.2%}")
+# 如果接受率过低 (<10%)，减小 step_size；如果过高 (>80%)，增大 step_size。
+# 理想范围通常在 20% - 50% 之间。
+
+print(f"Initial Pos X: {init_pos[0,0]}")
+print(f"Final Pos X:   {final_state.position[0,0]:.2f}")
