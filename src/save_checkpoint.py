@@ -135,6 +135,8 @@ def restore_checkpoint(ckpt_dir, params_sharding=None, opt_state_sharding=None, 
     
     restored_step = state_dict["step"]
     restored_config = state_dict["config"]
+    restored_config.setdefault("node_nl", restored_config["den_nl"])
+    restored_config.setdefault("ee_norm", False)
 
     # Older checkpoints store pair metadata without the diagonal.
     npar = restored_config["npar"]

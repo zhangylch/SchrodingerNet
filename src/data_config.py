@@ -19,6 +19,7 @@ class ModelConfig:
     spin_inp: Array
     radial_nl: Sequence[Union[int, bool]] # nblock, feature, nlayer
     den_nl: Sequence[Union[int, bool]] # nblock, feature, nlayer
+    node_nl: Sequence[Union[int, bool]] # nblock, feature, nlayer
     MP_nl: Sequence[Union[int, bool]] # nblock, feature, nlayer
     alpha_nl: Sequence[Union[int, bool]] # nblock, feature, nlayer
     alphaee_nl: Sequence[Union[int, bool]] # nblock, feature, nlayer
@@ -76,4 +77,5 @@ class ModelConfig:
     weight_hj: float
     cst: float 
     nup: int = 0
+    ee_norm: bool = False
 

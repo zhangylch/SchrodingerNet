@@ -64,7 +64,7 @@ scalar_sharding = NamedSharding(mesh, P())
 data_sharding = NamedSharding(mesh, P('GPUs'))
 dtype_1 = jax.device_put(jnp.array(1.0, dtype=jnp_float), scalar_sharding)
 
-restored = restore_checkpoint(full_config.ckpath)
+restored = restore_checkpoint(full_config.ckpath, target_dtype=None)
 start_step, params, _, model_config = restored
 params_sharding = create_sharding_pytree(params, mesh, P())
 params = jax.device_put(params, params_sharding)

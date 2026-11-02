@@ -67,6 +67,7 @@ class SPH_CAL():
         sph_list.append(self.prefactor1[1] * self.sqrt2pi_rev * cart[1].reshape(1, *sph_dim))
         sph_list.append((self.prefactor2[0] * self.sqrt2_rev * self.sqrt2pi_rev * cart[2]).reshape(1, *sph_dim))
         sph_list.append((self.prefactor1[1] * self.sqrt2pi_rev * cart[0]).reshape(1, *sph_dim))
+        sph = jnp.concatenate(sph_list)
         if self.max_l>2.5:
             sph_list.append((self.hc_factor1 * cart[0] * cart[1]).reshape(1, *sph_dim))
             sph_list.append((-self.hc_factor1 * cart[1] * cart[2]).reshape(1, *sph_dim))

@@ -31,7 +31,7 @@ dtype_2 = jax.device_put(jnp.array(2.0, dtype=jnp_float), scalar_sharding)
 dtype_1 = jax.device_put(jnp.array(1.0, dtype=jnp_float), scalar_sharding)
 
 #==============================Equi MPNN==============================================================
-restored = restore_checkpoint(full_config.ckpath)
+restored = restore_checkpoint(full_config.ckpath, target_dtype=None)
 
 start_step, params, _, model_config = restored
 
@@ -95,7 +95,7 @@ def get_values(key, coor, params, step):
     ele_ene = jax.lax.all_gather(ele_ene, axis_name='GPUs')
     init_logpsi = jax.lax.all_gather(init_logpsi, axis_name='GPUs')
     varene = jnp.mean(ele_ene)
-    return ele_ene, init_logpsi, varene
+    return key, coor, step, ele_ene, init_logpsi, varene
 
 init_sample = jax.jit(
               jax.shard_map(init_sample, mesh=mesh, 
@@ -120,7 +120,7 @@ init_sample = jax.jit(
 get_values = jax.jit(
              jax.shard_map(get_values, mesh=mesh, 
              in_specs=(P('GPUs'), P('GPUs'), P(), P()), 
-             out_specs=(P(), P(), P()),
+             out_specs=(P('GPUs'), P('GPUs'), P(), P(), P(), P()),
              check_vma=False
              ),
              in_shardings=(
@@ -130,6 +130,9 @@ get_values = jax.jit(
                  scalar_sharding
                  ),
              out_shardings=(
+                 data_sharding,
+                 data_sharding,
+                 scalar_sharding,
                  scalar_sharding,
                  scalar_sharding,
                  scalar_sharding
@@ -145,12 +148,12 @@ step = jnp.array([full_config.step[0]]*nele + [full_config.step[1]] * (npar - ne
 step = jax.device_put(step/mass, scalar_sharding)
 
 ens_plot = []
-ceta = 60.0
+ceta = 50.0
 r_h = 1.708
 seedcoor = seedcoor.at[:, 3, 0].set(0.0)
 seedcoor = seedcoor.at[:, 3, 1].set(0.0)
 seedcoor = seedcoor.at[:, 4, 1].set(0.0)
-for i in range(4):
+for i in range(20):
     r1 = r_h / np.cos(ceta / 2.0 /180.0 * np.pi)
     r2 = r1 * np.cos(ceta / 180.0 * np.pi)
     r3 = r1 * np.sin(ceta / 180.0 * np.pi)
@@ -159,7 +162,7 @@ for i in range(4):
     seedcoor = seedcoor.at[:, 5, 0].set(r2)
     seedcoor = seedcoor.at[:, 5, 1].set(r3)
     key, seedcoor, step = init_sample(key, seedcoor, params, step, dtype_1)
-    ele_ene, init_logpsi, varene = get_values(key, seedcoor, params, step)
+    key, seedcoor, step, ele_ene, init_logpsi, varene = get_values(key, seedcoor, params, step)
     fname = "eval_"+str(i)+".txt"
     ene_ens = jnp.stack([init_logpsi.reshape(-1), ele_ene.reshape(-1)], axis=1)
     np.savetxt(fname, np.array(ene_ens))

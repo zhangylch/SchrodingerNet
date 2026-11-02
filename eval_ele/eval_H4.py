@@ -31,7 +31,7 @@ dtype_2 = jax.device_put(jnp.array(2.0, dtype=jnp_float), scalar_sharding)
 dtype_1 = jax.device_put(jnp.array(1.0, dtype=jnp_float), scalar_sharding)
 
 #==============================Equi MPNN==============================================================
-restored = restore_checkpoint(full_config.ckpath)
+restored = restore_checkpoint(full_config.ckpath, target_dtype=None)
 
 start_step, params, _, model_config = restored
 

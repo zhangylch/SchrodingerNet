@@ -72,8 +72,10 @@ class JsonConfig:
     MP_loop: int = field(default=3)
     
     use_norm: bool = field(default=False)
+    ee_norm: bool = field(default=False)
     radial_nl: List[Any] = field(default_factory = lambda: [1, 64, 2, False, False])
     den_nl: List[Any] = field(default_factory = lambda: [1, 64, 2, False, False])
+    node_nl: List[Any] = field(default_factory = lambda: [1, 64, 2, False, False])
     MP_nl: List[Any] = field(default_factory = lambda: [1, 64, 2, False, False])
     alpha_nl: List[Any] = field(default_factory = lambda: [1, 64, 2, False, True]) 
     alphaee_nl: List[Any] = field(default_factory = lambda: [1, 64, 2, False, True]) 
@@ -111,5 +113,6 @@ def load_config(json_path: str) -> JsonConfig:
         return default_config
     
     # 仅更新 JSON 中提供的字段
+    json_data.setdefault("node_nl", json_data.get("den_nl", default_config.den_nl))
     return replace(default_config, **json_data)
 
