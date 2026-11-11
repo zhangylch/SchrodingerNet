@@ -148,19 +148,9 @@ step = jnp.array([full_config.step[0]]*nele + [full_config.step[1]] * (npar - ne
 step = jax.device_put(step/mass, scalar_sharding)
 
 ens_plot = []
-ceta = 50.0
-r_h = 1.708
-seedcoor = seedcoor.at[:, 3, 0].set(0.0)
-seedcoor = seedcoor.at[:, 3, 1].set(0.0)
-seedcoor = seedcoor.at[:, 4, 1].set(0.0)
-for i in range(20):
-    r1 = r_h / np.cos(ceta / 2.0 /180.0 * np.pi)
-    r2 = r1 * np.cos(ceta / 180.0 * np.pi)
-    r3 = r1 * np.sin(ceta / 180.0 * np.pi)
-    r = 2.0 * r1 * np.sin(ceta / 2.0 /180.0 * np.pi)
-    seedcoor = seedcoor.at[:, 4, 0].set(r1)
-    seedcoor = seedcoor.at[:, 5, 0].set(r2)
-    seedcoor = seedcoor.at[:, 5, 1].set(r3)
+r = 3.629
+for i in range(25):
+    seedcoor = seedcoor.at[:, -1, 0].set(r)
     key, seedcoor, step = init_sample(key, seedcoor, params, step, dtype_1)
     key, seedcoor, step, ele_ene, init_logpsi, varene = get_values(key, seedcoor, params, step)
     fname = "eval_"+str(i)+".txt"
@@ -168,5 +158,5 @@ for i in range(20):
     np.savetxt(fname, np.array(ene_ens))
     
     if jax.process_index()==0: print(r, varene, flush=True)
-    ceta = ceta + 2.0
+    r = r + 0.5
 print("Normal termination")

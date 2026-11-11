@@ -42,7 +42,7 @@ class Sampling():
 
         self.vmap_model = vmap(model, in_axes=(None, 0))
         step = jnp.array([step[0]]*self.nele + [step[1]] * self.nuc, dtype=sqrt_mass.dtype)
-        self.step = step/jnp.square(sqrt_mass) * 1e-1
+        self.step = step * 1e-1
       
         self.MC = self.MC_sample()
 

@@ -99,7 +99,7 @@ def train(key, params, optim, opt_state, loss_grad_fn, schedule_fn, MC_sample, v
     key = jax.device_put(key, data_sharding)
     seedcoor = jax.device_put(jnp.asarray(seedcoor1, dtype=jnp_float), data_sharding)
     step = jnp.array([full_config.vmc_step[0]]*nele + [full_config.vmc_step[1]] * (npar - nele), dtype=jnp_float)
-    step = jax.device_put(step / mass, scalar_sharding)
+    step = jax.device_put(step, scalar_sharding)
    
     if jax.process_index()==0: print_err = print_info.Print_Info(ferr)
     

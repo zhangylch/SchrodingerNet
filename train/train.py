@@ -191,9 +191,9 @@ def train(key, params, optim, opt_state, grad_clip, clip_state, schedule_fn, gra
     seedcoor1 = jax.device_put(jnp.asarray(seedcoor1, dtype=jnp_float), data_sharding)
     seedcoor2 = jax.device_put(jnp.asarray(seedcoor2, dtype=jnp_float), data_sharding)
     step = jnp.array([full_config.vmc_step[0]]*nele + [full_config.vmc_step[1]] * (npar - nele), dtype=jnp_float)
-    vmc_step = jax.device_put(step / mass, scalar_sharding)
+    vmc_step = jax.device_put(step, scalar_sharding)
     step = jnp.array([full_config.step[0]]*nele + [full_config.step[1]] * (npar - nele), dtype=jnp_float)
-    step = jax.device_put(step / mass, scalar_sharding)
+    step = jax.device_put(step, scalar_sharding)
     #  init sample to get ride of the unreasonable condiguration
     key, seedcoor2, step = init_sample(key, seedcoor2, params, step)
 
@@ -355,14 +355,13 @@ def make_mc_gradient(batch_local, vmap_model):
         clip_center = jnp.nanmedian(gathered)
         tv = jnp.nanmean(jnp.abs(gathered - clip_center))
         clip_values = jnp.clip(local_values, clip_center - full_config.vmc_clip_scale * tv, clip_center + full_config.vmc_clip_scale * tv)
-        varene = jax.lax.pmean(jnp.mean(local_values), axis_name="GPUs")
         clip_mean = jax.lax.pmean(jnp.mean(clip_values), axis_name="GPUs")
 
         mwcoor = coor * sqrt_mass[:, None]
         diff = clip_values - clip_mean
         diff = jax.lax.stop_gradient(diff)
         grads = get_grad(params, mwcoor, diff)
-        return varene, grads
+        return clip_mean, grads
 
     return _grad
 

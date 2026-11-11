@@ -328,7 +328,7 @@ class MPNN(nn.Module):
                 init_orb = init_orb * jnp.reciprocal(jnp.sqrt(norm_factor + reps))[:, None, None]
 
             iter_orb = jnp.concatenate([init_orb[:, :pnorb_i]] + save_orb, axis=2)
-            eeorbcoeff = self.eeorbcoeffnn(iter_orb.reshape(nele_i, -1)).reshape(nele_i, ndet_i, nrorb_i, nele_i, nbasis_i).astype(det_dtype)
+            eeorbcoeff = self.eeorbcoeffnn(iter_orb[:, :nrorb_i].reshape(nele_i, -1)).reshape(nele_i, ndet_i, nrorb_i, nele_i, nbasis_i).astype(det_dtype)
             contract_basis = (self.contract_basis * jnp.reciprocal(jnp.sqrt((self.config.neee+dtype_1)*nwave_f)))[self.config.spec_indices[:nele_i]]
             eeorb = jnp.einsum("ikn, iknm -> kim", iter_orb, contract_basis[:, pindex_l], optimize="optimal")
 
